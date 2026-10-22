@@ -1,0 +1,40 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+
+# Local lake files and query extracts. Fixtures under spark/tests and dbt/seeds stay tracked.
+data/raw/
+data/silver/
+data/logs/
+data/exports/
+*.duckdb
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+
+# Airflow local runtime
+airflow/.astro/
+airflow/logs/
+airflow/.env
+
+.idea/
+.vscode/
