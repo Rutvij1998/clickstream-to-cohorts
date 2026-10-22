@@ -1,0 +1,33 @@
+flowchart LR
+  subgraph local [Local machine]
+    kaggle[Kaggle CSV Oct and Nov 2019]
+    spark[PySpark typed ingest and dedupe]
+    session[Session disagreement report]
+    airflow[Airflow via Astro CLI]
+  end
+  subgraph aws [AWS]
+    s3[S3 Parquet partitioned by event_date]
+    glue[Glue Data Catalog]
+    athena[Athena workgroup]
+  end
+  subgraph transform [dbt]
+    staging[staging]
+    intermediate[intermediate]
+    core[core star schema]
+    marts[product marts]
+  end
+  tableau[Tableau Public four views]
+
+  kaggle --> spark
+  spark --> session
+  spark --> s3
+  s3 --> glue
+  glue --> athena
+  athena --> staging
+  staging --> intermediate
+  intermediate --> core
+  core --> marts
+  marts --> tableau
+  airflow --> spark
+  airflow --> athena
+  airflow --> marts

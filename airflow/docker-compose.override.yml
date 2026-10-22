@@ -1,0 +1,30 @@
+# Astro CLI merges this file. Start from airflow/ after sourcing the repo .env.
+# ${PWD} is the airflow directory, so ${PWD}/.. is the repository root.
+x-clickstream-runtime: &clickstream-runtime
+  env_file:
+    - path: ../.env
+      required: false
+  volumes:
+    - ${PWD}/..:/opt/clickstream
+    - ${HOME}/.aws:/home/astro/.aws:ro
+  environment:
+    CLICKSTREAM_HOME: /opt/clickstream
+    PYTHONPATH: /opt/clickstream
+    DBT_TARGET: ${DBT_TARGET:-athena}
+    EXPORT_TARGET: ${EXPORT_TARGET:-athena}
+    AWS_REGION: ${AWS_REGION:-us-east-1}
+    S3_BUCKET: ${S3_BUCKET:-}
+    GLUE_DATABASE: ${GLUE_DATABASE:-rees46}
+    ATHENA_WORKGROUP: ${ATHENA_WORKGROUP:-clickstream-to-cohorts}
+    ATHENA_SCHEMA: ${ATHENA_SCHEMA:-analytics}
+    ATHENA_S3_STAGING_DIR: ${ATHENA_S3_STAGING_DIR:-}
+    ATHENA_S3_DATA_DIR: ${ATHENA_S3_DATA_DIR:-}
+    SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-8g}
+
+services:
+  scheduler:
+    <<: *clickstream-runtime
+  webserver:
+    <<: *clickstream-runtime
+  triggerer:
+    <<: *clickstream-runtime
