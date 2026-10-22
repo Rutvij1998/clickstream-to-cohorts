@@ -1,0 +1,22 @@
+version: 2
+
+exposures:
+  - name: tableau_growth_dashboard
+    type: dashboard
+    maturity: medium
+    url: "{{ var('tableau_public_url') }}"
+    description: >
+      Tableau Public workbook with four views: Funnel health, Retention and
+      activation, Revenue drivers, and Experiment planner. Replace
+      tableau_public_url after the workbook is published.
+    depends_on:
+      - ref('mart_daily_kpis')
+      - ref('mart_funnel_daily_by_category')
+      - ref('mart_cart_abandonment')
+      - ref('mart_cohort_retention_weekly')
+      - ref('mart_activation')
+      - ref('mart_revenue_drivers_daily')
+      - ref('mart_category_monetization')
+      - ref('mart_experiment_baselines')
+    owner:
+      name: Rutvij Kulkarni

@@ -1,0 +1,61 @@
+name: clickstream_to_cohorts
+version: "1.0.0"
+config-version: 2
+profile: clickstream_to_cohorts
+require-dbt-version: [">=1.11.0", "<1.12.0"]
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+vars:
+  start_date: "2019-10-01"
+  end_date: "2019-11-30"
+  dev_mode: false
+  tableau_public_url: "https://github.com/Rutvij1998/clickstream-to-cohorts/blob/main/dashboards/README.md"
+
+models:
+  clickstream_to_cohorts:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    core:
+      +materialized: table
+      +schema: core
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  clickstream_to_cohorts:
+    events_silver:
+      +column_types:
+        event_id: varchar
+        event_time: timestamp
+        event_type: varchar
+        product_id: bigint
+        category_id: bigint
+        category_code: varchar
+        brand: varchar
+        price: double
+        user_id: bigint
+        user_session: varchar
+        event_date: date
+    dim_date_spine:
+      +column_types:
+        date_day: date
+        year_number: integer
+        month_number: integer
+        day_of_month: integer
+        iso_day_of_week: integer
+        day_name: varchar
+        week_start_date: date

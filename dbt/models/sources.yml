@@ -1,0 +1,31 @@
+version: 2
+
+sources:
+  - name: rees46
+    description: Silver clickstream written by the Spark job and registered in Glue.
+    schema: "{{ env_var('GLUE_DATABASE', 'rees46') }}"
+    tables:
+      - name: events_silver
+        description: >
+          One row per deduped event. Partitioned by event_date with partition
+          projection from 2019-10-01 through 2019-11-30. The dev target reads
+          the events_silver seed instead of this table.
+        columns:
+          - name: event_id
+            description: SHA-256 of the typed event fields. See spark/jobs/identifiers.py.
+          - name: event_time
+            description: Event timestamp in UTC.
+          - name: event_type
+            description: view, cart, remove_from_cart, or purchase.
+          - name: product_id
+          - name: category_id
+          - name: category_code
+            description: Dot separated category path. Null when the source left it blank.
+          - name: brand
+          - name: price
+            description: Event price. Purchase revenue is the sum of these values.
+          - name: user_id
+          - name: user_session
+            description: Session id logged by the store. Marts keep this key.
+          - name: event_date
+            description: UTC date of event_time. Hive partition column.

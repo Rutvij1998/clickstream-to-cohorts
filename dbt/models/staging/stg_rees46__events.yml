@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: stg_rees46__events
+    description: >
+      Typed events with one row per event_id. On the dev target this reads the
+      synthetic seed. On Athena it reads rees46.events_silver. dev_mode keeps
+      a 7 day window starting at start_date. event_date limits a daily Athena run.
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: event_time
+        data_tests:
+          - not_null
+      - name: event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["view", "cart", "remove_from_cart", "purchase"]
+      - name: product_id
+        data_tests:
+          - not_null
+      - name: category_id
+        data_tests:
+          - not_null
+      - name: price
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: user_id
+        data_tests:
+          - not_null
+      - name: user_session
+        data_tests:
+          - not_null
+      - name: event_date
+        data_tests:
+          - not_null
