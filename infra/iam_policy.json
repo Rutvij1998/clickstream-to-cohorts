@@ -1,0 +1,74 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListAndLocateBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::BUCKET_NAME"
+    },
+    {
+      "Sid": "ReadWriteBucketObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::BUCKET_NAME/*"
+    },
+    {
+      "Sid": "GlueCatalogForThisProject",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:CreateDatabase",
+        "glue:UpdateDatabase",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:CreateTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable",
+        "glue:GetPartition",
+        "glue:GetPartitions",
+        "glue:CreatePartition",
+        "glue:BatchCreatePartition",
+        "glue:UpdatePartition",
+        "glue:DeletePartition",
+        "glue:BatchDeletePartition"
+      ],
+      "Resource": [
+        "arn:aws:glue:REGION:ACCOUNT_ID:catalog",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/rees46",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/staging",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/intermediate",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/core",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/marts",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/analytics",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/rees46/*",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/staging/*",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/intermediate/*",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/core/*",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/marts/*",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/analytics/*"
+      ]
+    },
+    {
+      "Sid": "AthenaWorkgroup",
+      "Effect": "Allow",
+      "Action": [
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution",
+        "athena:GetWorkGroup"
+      ],
+      "Resource": "arn:aws:athena:REGION:ACCOUNT_ID:workgroup/clickstream-to-cohorts"
+    }
+  ]
+}
