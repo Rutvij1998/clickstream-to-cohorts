@@ -3,9 +3,10 @@ version: 2
 models:
   - name: stg_rees46__events
     description: >
-      Typed events with one row per event_id. On the dev target this reads the
-      synthetic seed. On Athena it reads rees46.events_silver. dev_mode keeps
-      a 7 day window starting at start_date. event_date limits a daily Athena run.
+      Typed events with one row per event_id. silver_source seed reads the
+      synthetic seed. silver_source parquet reads data/silver/events.
+      dev_mode keeps a 7 day window starting at start_date. event_date limits
+      a daily run to that date.
     columns:
       - name: event_id
         data_tests:

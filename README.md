@@ -2,7 +2,7 @@
 
 E-commerce clickstream, turned into the datasets a growth team actually uses: funnel health, cart abandonment, weekly cohort retention, 7 day activation, revenue drivers, and experiment sample sizes.
 
-The source is the public [REES46 e-commerce behavior dataset](https://www.kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store) on Kaggle (October and November 2019). Raw files are large CSV extracts. This repo types them, drops exact duplicates, writes date partitioned Parquet, and models sessions, orders, and product marts on top. Tableau Public is the reading surface. Rutvij Kulkarni publishes that workbook. The URL below stays a placeholder until that happens.
+The source is the public [REES46 e-commerce behavior dataset](https://www.kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store) on Kaggle (October and November 2019). Raw files are large CSV extracts. This repo types them, drops exact duplicates, writes date partitioned Parquet on the laptop, and models sessions, orders, and product marts in a local DuckDB file. Tableau Public is the reading surface. Rutvij Kulkarni publishes that workbook. The URL below stays a placeholder until that happens.
 
 ## Problem
 
@@ -21,55 +21,41 @@ The warehouse answers those questions from one star schema. Metrics are defined 
 ```mermaid
 flowchart LR
   subgraph local [Local machine]
-    kaggle[Kaggle CSV Oct and Nov 2019]
-    spark[PySpark typed ingest and dedupe]
-    session[Session disagreement report]
-    airflow[Airflow via Astro CLI]
-  end
-  subgraph aws [AWS]
-    s3[S3 Parquet partitioned by event_date]
-    glue[Glue Data Catalog]
-    athena[Athena workgroup]
-  end
-  subgraph transform [dbt]
-    staging[staging]
-    intermediate[intermediate]
-    core[core star schema]
-    marts[product marts]
+    kaggle[Kaggle CSV or checked-in sample]
+    spark[PySpark local mode]
+    parquet[Parquet in data/silver]
+    duckdb[DuckDB warehouse file]
+    airflow[Airflow optional local replay]
   end
   tableau[Tableau Public four views]
 
   kaggle --> spark
-  spark --> session
-  spark --> s3
-  s3 --> glue
-  glue --> athena
-  athena --> staging
-  staging --> intermediate
-  intermediate --> core
-  core --> marts
-  marts --> tableau
+  spark --> parquet
+  parquet --> duckdb
+  duckdb --> tableau
   airflow --> spark
-  airflow --> athena
-  airflow --> marts
+  airflow --> duckdb
 ```
 
 The same diagram is in [docs/architecture.mmd](docs/architecture.mmd) and [docs/architecture.png](docs/architecture.png).
 
-PySpark runs on the laptop, one month at a time, and writes Parquet partitioned by `event_date`. A rerun overwrites only the dates in that file. Glue and Athena sit on the lake. dbt (the Athena adapter for the warehouse, DuckDB for local development and CI) builds staging, intermediate, a core star schema, and the marts. Airflow, via the Astro CLI, replays 2019-10-01 through 2019-11-30 one day at a time. The last logical date is 2019-11-30 because the DAG end is exclusive at 2019-12-01. That is 61 days, with catchup on and one active run.
+PySpark runs in local mode, one month at a time, and writes Parquet under `data/silver/events`, partitioned by `event_date`. A rerun overwrites only the dates in that file. dbt, through the DuckDB adapter, builds staging, intermediate, a core star schema, and the marts into `dbt/target/clickstream.duckdb`. `make export` writes the eight marts to `data/exports` as CSV for Tableau Public.
+
+Airflow is optional. It replays 2019-10-01 through 2019-11-30 one day at a time after the Parquet is on disk. The last logical date is 2019-11-30 because the DAG end is exclusive at 2019-12-01. That is 61 days, with catchup on and one active run.
 
 ## Stack
 
 | Piece | Choice |
 | --- | --- |
 | Ingest | PySpark 3.5, local mode |
-| Lake | S3, SSE-S3, public access blocked, Parquet |
-| Catalog and query | Glue Data Catalog, Athena, partition projection on `event_date` |
-| Transform | dbt 1.11, `dbt-athena` in the warehouse, `dbt-duckdb` for the dev target and CI |
-| Orchestration | Apache Airflow 2 on [Astro Runtime 12.12.0](https://quay.io/repository/astronomer/astro-runtime), LocalExecutor |
+| Lake | Parquet on local disk, partitioned by `event_date` |
+| Warehouse | DuckDB file, dbt 1.11 with `dbt-duckdb` |
+| Orchestration | Optional. Astro Runtime 12.12.0, or `airflow standalone` if Airflow is already installed |
 | CI | GitHub Actions: ruff, pytest, sqlfluff, `dbt parse`, DuckDB `dbt build` |
 | Docs | `dbt docs generate --empty-catalog --static`, GitHub Pages |
 | BI | Tableau Public, four views, published separately |
+
+Nothing in this pipeline calls a cloud warehouse. CI uses the checked-in synthetic fixture and never downloads Kaggle.
 
 ## Data model
 
@@ -81,7 +67,7 @@ Null `category_code` and `brand` become `Unknown` after staging. `category_l1` i
 
 | Layer | Models |
 | --- | --- |
-| Source | `rees46.events_silver` |
+| Input | `data/silver/events` Parquet, or the `events_silver` seed in CI |
 | Staging | `stg_rees46__events` |
 | Intermediate | `int_events_enriched`, `int_sessions`, `int_orders`, `int_user_first_activity` |
 | Core | `dim_date`, `dim_users`, `dim_products`, `dim_categories`, `fct_events`, `fct_sessions`, `fct_orders` |
@@ -101,6 +87,8 @@ cd dbt && dbt ls --resource-type test --quiet --profiles-dir .
 
 The project currently defines 95 data tests. Definitions live in [dbt/models/docs.md](dbt/models/docs.md).
 
+`fct_events` is incremental. A daily run passes `event_date` and replaces only that date. `make run` does a full refresh of every Parquet partition on disk.
+
 ### Metric definitions
 
 | Metric | Definition |
@@ -118,21 +106,22 @@ The project currently defines 95 data tests. Definitions live in [dbt/models/doc
 
 ```text
 ingestion/download.sh          Kaggle download from KAGGLE_USERNAME and KAGGLE_KEY
-spark/jobs/                    CSV to Parquet, and the session disagreement report
-spark/tests/fixtures/          Synthetic raw CSV used by pytest
-scripts/                       Ingest, upload, export, reconcile, fixture generator
-dbt/                           Models, seeds, tests, profiles
-airflow/                       Astro project and the two DAGs
-infra/                         Terraform, boto3 bootstrap, Athena DDL, IAM policy
+spark/jobs/                    CSV to local Parquet, and the session disagreement report
+spark/tests/fixtures/          Synthetic raw CSV used by pytest and by make run
+scripts/run_local.py           End to end local pipeline
+dbt/                           Models, seeds, tests, DuckDB profile
+airflow/                       Optional Astro project and the two DAGs
 dashboards/                    Field level spec for the four Tableau views
 docs/                          Architecture diagram
+data/silver                    Local Parquet lake, gitignored
+data/exports                   Mart CSV files for Tableau Public, gitignored
 ```
 
-The synthetic fixture is generated, not a sample of the REES46 files. It exists so pytest and the DuckDB build run with no AWS account and no Kaggle token. Do not quote fixture row counts as project results.
+The synthetic fixture is generated, not a sample of the REES46 files. It exists so pytest, `make ci`, and `make run` work before a Kaggle download. Do not quote fixture row counts as project results.
 
 ## How to run
 
-Requirements: Python 3.11 or newer, Java 17 (Temurin or OpenJDK), and GNU make. The full warehouse also needs an AWS account, Terraform 1.6 or newer (or boto3, which the bootstrap script uses), the [Kaggle CLI](https://github.com/Kaggle/kaggle-api) token, and the [Astro CLI](https://www.astronomer.io/docs/astro/cli/install-cli) for Airflow. Tableau Public is a separate publish step.
+Requirements: Python 3.11 or newer, Java 17 (Temurin or OpenJDK), and GNU make. A Kaggle token is required only for the full October and November files. Tableau Public is a separate publish step. Airflow is optional.
 
 ```bash
 python -m venv .venv
@@ -141,77 +130,54 @@ make install
 cp .env.example .env
 ```
 
-Fill `.env` from the checklist at the bottom. Never commit `.env`.
-
-Prove the local path before any cloud cost:
+Prove the project before downloading anything:
 
 ```bash
 make ci
+make run
 ```
 
-That runs ruff, pytest (PySpark on the synthetic CSV), `dbt parse` for the DuckDB and Athena targets, a full DuckDB `dbt build`, and sqlfluff.
+`make ci` runs ruff, pytest (PySpark on the synthetic CSV), `dbt parse`, a full DuckDB `dbt build` on the seed, the 7 day `dev_mode` build, and sqlfluff.
 
-### Warehouse, cost controls
+`make run` is the whole pipeline. With no files in `data/raw`, it ingests the checked-in fixture into `data/silver/events`, writes the session report, builds the DuckDB warehouse from that Parquet, and exports `data/exports/*.csv`. When `data/raw/2019-Oct.csv` or `data/raw/2019-Nov.csv` is present, it ingests those months instead. Spark driver memory for a month is `SPARK_DRIVER_MEMORY` (default `8g`). The sample path uses `1g`.
 
-Terraform creates a bucket (prefix `clickstream-cohorts-`, `force_destroy` on), blocks public access, encrypts with SSE-S3, expires `athena-results/` after 7 days, creates Glue databases `rees46`, `staging`, `intermediate`, `core`, and `marts`, registers `rees46.events_silver` with partition projection for 2019-10-01 to 2019-11-30, creates the Athena workgroup `clickstream-to-cohorts` with a 10 GiB per query scan cap (`10737418240` bytes), and attaches an IAM policy scoped to that bucket, those databases, and that workgroup. An optional email gets a budget alert at 80 percent of 5 USD.
+### Full extract
 
-```bash
-cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars
-# set aws_region and, if you want the alert, budget_alert_email
-cd ../..
-make infra-apply
-terraform -chdir=infra/terraform output
-```
-
-Copy `bucket_name`, `athena_results_uri`, and `dbt_data_uri` into `.env`. Then attach the policy to the IAM user that will run the jobs:
-
-```bash
-aws iam attach-user-policy \
-  --user-name YOUR_IAM_USER \
-  --policy-arn "$(terraform -chdir=infra/terraform output -raw iam_policy_arn)"
-```
-
-Without Terraform, pick a globally unique bucket name, put it in `S3_BUCKET`, and run `make infra-cli`. The script prints the same values and the `attach-user-policy` command. It does not create access keys.
-
-`make dbt-athena` builds with `dev_mode` (the first 7 days only) so exploration stays inside the scan cap. `make dbt-athena-full` is the 61 day build. Do not combine `--full-refresh` with `event_date`.
-
-Planning estimates, not a measured bill: S3 storage under $0.25 for the Parquet and short lived query results, S3 requests under $0.05, Athena under $0.75 if scans stay inside the 10 GiB cap and the 7 day result lifecycle, Glue catalog $0, local compute $0. The design target is under $2. Set `BUDGET_ALERT_EMAIL` before apply if you want the 5 USD alert.
-
-### Full replay
+Create a Kaggle token at https://www.kaggle.com/settings, put `KAGGLE_USERNAME` and `KAGGLE_KEY` in `.env`, and accept the dataset terms on the Kaggle page. Then:
 
 ```bash
 set -a && source .env && set +a
 make download
-make ingest-month MONTH=2019-10
-make ingest-month MONTH=2019-11
-make sessionize
-make upload
-make dbt-athena
-make dbt-athena-full
-python scripts/reconcile_counts.py
-EXPORT_TARGET=athena make export
+make run
 ```
 
-`make download` reads `KAGGLE_USERNAME` and `KAGGLE_KEY` from the environment or `.env`. It fetches `2019-Oct.csv` and `2019-Nov.csv` only. Spark driver memory defaults to 8g for a full month (`SPARK_DRIVER_MEMORY`).
+`make download` fetches `2019-Oct.csv` and `2019-Nov.csv` only. `make run` then rebuilds silver Parquet, the DuckDB warehouse, and the Tableau CSV files. `make reconcile` prints Spark `output_rows` next to the Parquet count and exits 1 if they differ.
 
-Airflow, from a sourced `.env`, with `~/.aws` present if you use a profile:
+### Optional day by day replay
+
+Run `make run` first so every ingested day is already in DuckDB. Then either start the Astro project:
 
 ```bash
-mkdir -p ~/.aws
 cd airflow
 astro dev start
 ```
 
-Unpause `build_daily`. Leave `ingest_month` paused. It is manual (`schedule=None`) and takes `month` as `2019-10` or `2019-11`. Trigger it once per month if you want ingest inside Airflow instead of `make ingest-month`.
+or, if Apache Airflow is already installed on the machine:
 
-`build_daily` runs `check_partition`, then `dbt build` for that `ds` (Athena only; the dev target rebuilds the fixture), then `dbt test` as the data quality gate, then an UNLOAD of the eight marts. Seeds are not built on Athena.
+```bash
+export AIRFLOW_HOME=$PWD/.airflow
+export CLICKSTREAM_HOME=$PWD
+export PYTHONPATH=$PWD
+airflow standalone
+```
 
-Set `DBT_TARGET=dev` and `EXPORT_TARGET=local` before `astro dev start` to exercise the fixture inside Airflow with no AWS calls. The warehouse replay uses `DBT_TARGET=athena` and `EXPORT_TARGET=athena`.
+Unpause `build_daily`. It checks that `data/silver/events/event_date={{ ds }}` exists, refreshes that date in DuckDB, runs `dbt test`, and rewrites `data/exports`. Leave `ingest_month` paused. It is manual (`schedule=None`) and takes `month` as `2019-10` or `2019-11`. Trigger it once per month if you want ingest inside Airflow instead of `make run`.
+
+A catchup started on an empty warehouse only contains the days finished so far, and the quality gate can fail until the window is complete. `make run` is the one-shot path.
 
 ## Dashboard
 
-Four Tableau Public views. The field list and chart intent are in [dashboards/README.md](dashboards/README.md). Publish them yourself, then set `tableau_public_url` in [dbt/dbt_project.yml](dbt/dbt_project.yml) to the workbook URL and rebuild the exposure.
+Four Tableau Public views. The field list and chart intent are in [dashboards/README.md](dashboards/README.md). Publish them yourself from `data/exports`, then set `tableau_public_url` in [dbt/dbt_project.yml](dbt/dbt_project.yml) to the workbook URL.
 
 | View | Marts |
 | --- | --- |
@@ -234,7 +200,7 @@ Build locally with `make dbt-docs` and open `dbt/target/index.html`.
 
 ## Results
 
-Numbers below are blank on purpose. Fill each `[N]` from a real run. Do not paste fixture counts, and do not estimate.
+Numbers below are blank on purpose. Fill each `[N]` from a real run of the October and November files. Do not paste fixture counts, and do not estimate.
 
 | Measure | Value | Source |
 | --- | --- | --- |
@@ -268,14 +234,13 @@ Replace `[N]` in the table with those totals. The disagreement rate is a fractio
 
 A resume line that stays honest until that run:
 
-> Built a local PySpark and Athena pipeline over the public REES46 clickstream (October and November 2019), with 20 dbt models and 95 data tests covering funnel, retention, activation, and experiment baselines. Silver row count [N]. Session disagreement rate against a 30 minute rule [N].
+> Built a local PySpark and DuckDB pipeline over the public REES46 clickstream (October and November 2019), with 20 dbt models and 95 data tests covering funnel, retention, activation, and experiment baselines. Silver row count [N]. Session disagreement rate against a 30 minute rule [N].
 
 ## Design choices
 
-- Athena and Glue, with partition projection, keep the warehouse on the files Spark already wrote.
-- PySpark stays on the laptop so the month CSV files never have to land in a paid cluster for a portfolio replay.
-- DuckDB is the dbt dev target. CI never calls AWS or Kaggle.
-- Airflow runs locally through Astro so the 61 day replay is visible, with catchup, and shuts down when you stop it.
+- The warehouse is a DuckDB file on the laptop. Spark writes the Parquet it reads.
+- CI never downloads Kaggle. It builds the seed. `make run` without month files builds the same fixture from Parquet.
+- Airflow stays optional. `make run` is the supported end to end command.
 - Marts keep `user_session`. The 30 minute rule is a data quality report.
 
 ## Caveats
@@ -286,7 +251,7 @@ A resume line that stays honest until that run:
 - The Kaggle dataset stays under its own terms. See [DATA.md](DATA.md). This repository's code is MIT. The CSV files are not.
 - Ingest one month at a time. The driver default is 8g.
 - The replay is a static backfill of two months, not a live feed.
-- Athena facts use `insert_overwrite` on the partitions touched that day. A dev build with `dev_mode` reads the first 7 days only. The daily DAG does not set `dev_mode`.
+- `dev_mode` reads the first 7 days only. The daily DAG does not set `dev_mode`. It passes `event_date` and replaces that date in `fct_events`.
 
 ## License
 

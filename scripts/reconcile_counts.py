@@ -1,24 +1,31 @@
-"""Compare the Spark run log with an Athena count of events_silver.
+"""Compare Spark run logs with a local Parquet count.
 
 Prints both numbers. Exits 1 when they differ. Does not embed an expected count.
+Month logs (data/logs/2019-*.json) win when they exist. Otherwise sample.json
+is the log from a fixture run.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def spark_output_rows() -> int:
+def log_paths() -> list[Path]:
     logs = sorted((ROOT / "data" / "logs").glob("2019-*.json"))
-    if not logs:
-        raise SystemExit("No data/logs/2019-*.json run logs. Run make ingest for each month.")
+    if logs:
+        return logs
+    sample = ROOT / "data" / "logs" / "sample.json"
+    if sample.is_file():
+        return [sample]
+    raise SystemExit("No data/logs/2019-*.json or sample.json. Run make run first.")
+
+
+def spark_output_rows() -> int:
     total = 0
-    for path in logs:
+    for path in log_paths():
         payload = json.loads(path.read_text(encoding="utf-8"))
         if "output_rows" not in payload:
             continue
@@ -27,37 +34,35 @@ def spark_output_rows() -> int:
     return total
 
 
-def athena_count() -> int:
-    import boto3
+def parquet_count() -> int:
+    import duckdb
 
-    database = os.environ.get("GLUE_DATABASE", "rees46")
-    workgroup = os.environ.get("ATHENA_WORKGROUP", "clickstream-to-cohorts")
-    client = boto3.client("athena")
-    query = f"SELECT count(*) AS row_count FROM {database}.events_silver"
-    execution_id = client.start_query_execution(QueryString=query, WorkGroup=workgroup)[
-        "QueryExecutionId"
-    ]
-    while True:
-        status = client.get_query_execution(QueryExecutionId=execution_id)["QueryExecution"][
-            "Status"
-        ]
-        state = status["State"]
-        if state == "SUCCEEDED":
-            break
-        if state in {"FAILED", "CANCELLED"}:
-            raise SystemExit(status.get("StateChangeReason", state))
-        time.sleep(2)
-    rows = client.get_query_results(QueryExecutionId=execution_id)["ResultSet"]["Rows"]
-    return int(rows[1]["Data"][0]["VarCharValue"])
+    silver = ROOT / "data" / "silver" / "events"
+    if not silver.is_dir():
+        raise SystemExit(f"No silver Parquet under {silver}.")
+    connection = duckdb.connect()
+    try:
+        row = connection.execute(
+            """
+            select count(*)
+            from read_parquet(?, hive_partitioning = true)
+            """,
+            [str(silver / "**" / "*.parquet")],
+        ).fetchone()
+    finally:
+        connection.close()
+    if row is None:
+        raise SystemExit("Parquet count returned no row.")
+    return int(row[0])
 
 
 def main() -> None:
     logged = spark_output_rows()
-    counted = athena_count()
+    counted = parquet_count()
     print(f"spark_output_rows={logged}")
-    print(f"athena_count={counted}")
+    print(f"parquet_count={counted}")
     if logged != counted:
-        raise SystemExit("Spark output_rows and the Athena count differ.")
+        raise SystemExit("Spark output_rows and the Parquet count differ.")
 
 
 if __name__ == "__main__":

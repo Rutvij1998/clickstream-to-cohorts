@@ -3,8 +3,10 @@
 end_date is exclusive. 2019-12-01 keeps the logical date 2019-11-30 and drops
 2019-12-01. That is 61 days. catchup is on and only one run is active.
 
-event_date is passed only when DBT_TARGET=athena. The dev target does not
-receive that variable, so a local replay rebuilds the fixture and tests still pass.
+Each run checks the local Parquet partition, refreshes that event_date in
+DuckDB, runs tests, and exports mart CSV files. Run `make run` once first so
+the warehouse already holds every ingested day. A catchup on an empty
+warehouse only contains the days completed so far.
 """
 
 from __future__ import annotations
@@ -22,13 +24,7 @@ if CLICKSTREAM_HOME not in sys.path:
 
 from pipeline.window import REPLAY_END_EXCLUSIVE, REPLAY_START  # noqa: E402
 
-DBT_TARGET = os.environ.get("DBT_TARGET", "athena")
-if DBT_TARGET == "athena":
-    DBT_VARS = ' --vars \'{"event_date": "{{ ds }}"}\''
-else:
-    DBT_VARS = ""
-
-EXPORT_TARGET = os.environ.get("EXPORT_TARGET", "athena" if DBT_TARGET == "athena" else "local")
+DBT_VARS = ' --vars \'{"event_date": "{{ ds }}", "silver_source": "parquet"}\''
 
 
 def _dbt(command: str) -> str:
@@ -36,8 +32,8 @@ def _dbt(command: str) -> str:
         "set -euo pipefail; "
         "cd /opt/clickstream/dbt; "
         "dbt deps --profiles-dir .; "
-        f'dbt {command} --target "${{DBT_TARGET:-athena}}" --profiles-dir . '
-        "--select staging intermediate core marts"
+        f"dbt {command} --target dev --profiles-dir . "
+        "--select seeds staging intermediate core marts"
         f"{DBT_VARS}"
     )
 
@@ -65,11 +61,11 @@ def build_daily():
         task_id="data_quality_gate",
         bash_command=_dbt("test"),
     )
-    unload_marts = BashOperator(
-        task_id="unload_marts",
-        bash_command=(f"python /opt/clickstream/scripts/export_marts.py --target {EXPORT_TARGET}"),
+    export_marts = BashOperator(
+        task_id="export_marts",
+        bash_command="python /opt/clickstream/scripts/export_marts.py",
     )
-    check_partition >> dbt_build >> data_quality_gate >> unload_marts
+    check_partition >> dbt_build >> data_quality_gate >> export_marts
 
 
 build_daily()

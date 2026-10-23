@@ -33,7 +33,7 @@ Please cite the Kaggle dataset page and REES46 when you describe the extract. Th
 
 ## License split
 
-- Code, tests, dbt models, Airflow DAGs, and Terraform in this repository: MIT. See [LICENSE](LICENSE).
+- Code, tests, dbt models, and Airflow DAGs in this repository: MIT. See [LICENSE](LICENSE).
 - The REES46 CSV files, and any Parquet or export you build from them: data files remain under the dataset terms set by the original authors. They are not covered by the MIT license.
 - `spark/tests/fixtures/events_raw.csv` and `dbt/seeds/events_silver.csv` are synthetic rows written for tests. They are not a sample of the Kaggle files. Do not report their row counts as properties of the REES46 extract.
 

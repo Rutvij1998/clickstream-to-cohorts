@@ -1,5 +1,4 @@
 import ast
-import json
 import subprocess
 from pathlib import Path
 
@@ -47,7 +46,8 @@ def test_build_daily_replays_exclusive_end():
     assert "2019-12-01" in text
     assert "check_partition" in text
     assert "data_quality_gate" in text
-    assert "unload_marts" in text
+    assert "export_marts" in text
+    assert "silver_source" in text
 
 
 def test_ingest_month_is_manual():
@@ -60,15 +60,37 @@ def test_ingest_month_is_manual():
     assert "2019-11" in text
 
 
-def test_infra_placeholders_stay_unfilled():
-    policy = (ROOT / "infra/iam_policy.json").read_text(encoding="utf-8")
-    json.loads(policy)
-    assert "BUCKET_NAME" in policy
-    assert "ACCOUNT_ID" in policy
-    lifecycle = json.loads((ROOT / "infra/s3_lifecycle.json").read_text(encoding="utf-8"))
-    assert lifecycle["Rules"][0]["Filter"]["Prefix"] == "athena-results/"
-    ddl = (ROOT / "infra/athena_ddl.sql").read_text(encoding="utf-8")
-    assert "BUCKET_NAME" in ddl
+def test_pipeline_stays_on_the_laptop():
+    assert not (ROOT / "infra").exists()
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "\nrun:" in makefile
+    tokens = (
+        "A" + "WS",
+        "a" + "ws",
+        "Athe" + "na",
+        "athe" + "na",
+        "Gl" + "ue",
+        "gl" + "ue",
+        "Terra" + "form",
+        "bo" + "to3",
+        "s3://",
+    )
+    skip = {"dbt/target", "dbt/dbt_packages", "dbt/logs", ".git"}
+    suffixes = {".md", ".py", ".sql", ".yml", ".yaml", ".json", ".sh", ".mmd", ".example", ".txt"}
+    offenders: list[str] = []
+    for path in ROOT.rglob("*"):
+        if not path.is_file() or path.suffix not in suffixes:
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        if relative == "tests/test_repo_contracts.py":
+            continue
+        if any(part in relative for part in skip):
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in tokens:
+            if token in text:
+                offenders.append(f"{relative}: {token}")
+    assert offenders == []
 
 
 def test_download_script_parses():

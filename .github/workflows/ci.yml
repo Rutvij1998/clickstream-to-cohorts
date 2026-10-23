@@ -39,9 +39,8 @@ jobs:
         run: |
           dbt deps
           dbt parse --target dev
-          dbt parse --target athena
-          dbt build --target dev
-          dbt build --target dev --vars '{dev_mode: true}'
+          dbt build --target dev --full-refresh
+          dbt build --target dev --full-refresh --vars '{dev_mode: true}'
 
       - name: sqlfluff
         working-directory: dbt

@@ -1,6 +1,4 @@
 dbt-core==1.11.6
 dbt-duckdb==1.11.0
-dbt-athena==1.11.1
 pyspark==3.5.9
-boto3==1.38.27
 kaggle==1.7.4.5

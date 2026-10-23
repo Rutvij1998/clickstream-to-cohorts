@@ -1,6 +1,6 @@
 # Tableau Public workbook
 
-Four views, one workbook. Connect Tableau Public to the mart CSV files from `make export` (`data/exports/` when `EXPORT_TARGET=local`, or `s3://$S3_BUCKET/exports/<mart>.csv` after an Athena export).
+Four views, one workbook. Connect Tableau Public to the mart CSV files in `data/exports/` after `make run` or `make export`.
 
 This page is the spec. It is not a published dashboard, and it does not include a screenshot. After you publish, replace `tableau_public_url` in `dbt/dbt_project.yml`. Until then the dbt exposure points here:
 

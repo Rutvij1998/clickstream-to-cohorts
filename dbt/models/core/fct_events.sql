@@ -1,14 +1,8 @@
-{% if target.type == 'athena' %}
 {{ config(
     materialized='incremental',
-    incremental_strategy='insert_overwrite',
-    table_type='hive',
-    format='parquet',
-    partitioned_by=['event_date']
+    incremental_strategy='delete+insert',
+    unique_key='event_date'
 ) }}
-{% else %}
-    {{ config(materialized='table') }}
-{% endif %}
 
 select
     events.event_id,

@@ -1,15 +1,3 @@
-{% if target.type == 'athena' %}
-{{ config(
-    materialized='incremental',
-    incremental_strategy='insert_overwrite',
-    table_type='hive',
-    format='parquet',
-    partitioned_by=['session_start_date']
-) }}
-{% else %}
-    {{ config(materialized='table') }}
-{% endif %}
-
 with sessions as (
     select
         int_sessions.session_id,
@@ -41,13 +29,3 @@ select
     sessions.revenue,
     sessions.session_start_date
 from sessions
-{% if target.type == 'athena' and var('event_date', none) is not none %}
-inner join (
-    select distinct sessions.session_start_date
-    from sessions
-    inner join {{ ref('fct_events') }} as events
-        on sessions.session_id = events.session_id
-    where events.event_date = cast('{{ var("event_date") }}' as date)
-) as touched
-    on sessions.session_start_date = touched.session_start_date
-{% endif %}

@@ -1,5 +1,19 @@
 with raw_events as (
-    {% if target.type == 'duckdb' %}
+    {% if var('silver_source', 'seed') == 'parquet' %}
+    select
+        events_silver.event_id,
+        events_silver.event_time,
+        events_silver.event_type,
+        events_silver.product_id,
+        events_silver.category_id,
+        events_silver.category_code,
+        events_silver.brand,
+        events_silver.price,
+        events_silver.user_id,
+        events_silver.user_session,
+        events_silver.event_date
+    from read_parquet('{{ var("silver_glob") }}', hive_partitioning = true) as events_silver
+    {% else %}
         select
             events_silver.event_id,
             events_silver.event_time,
@@ -13,20 +27,6 @@ with raw_events as (
             events_silver.user_session,
             events_silver.event_date
         from {{ ref('events_silver') }} as events_silver
-    {% else %}
-    select
-        events_silver.event_id,
-        events_silver.event_time,
-        events_silver.event_type,
-        events_silver.product_id,
-        events_silver.category_id,
-        events_silver.category_code,
-        events_silver.brand,
-        events_silver.price,
-        events_silver.user_id,
-        events_silver.user_session,
-        events_silver.event_date
-    from {{ source('rees46', 'events_silver') }} as events_silver
     {% endif %}
 ),
 

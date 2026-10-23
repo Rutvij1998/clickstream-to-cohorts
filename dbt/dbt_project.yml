@@ -18,6 +18,10 @@ vars:
   start_date: "2019-10-01"
   end_date: "2019-11-30"
   dev_mode: false
+  # seed: CI and `make dbt-dev` read dbt/seeds/events_silver.csv.
+  # parquet: `make run` and Airflow read data/silver/events.
+  silver_source: seed
+  silver_glob: "../data/silver/events/**/*.parquet"
   tableau_public_url: "https://github.com/Rutvij1998/clickstream-to-cohorts/blob/main/dashboards/README.md"
 
 models:

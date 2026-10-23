@@ -21,20 +21,11 @@ dbt/dbt_packages/
 dbt/logs/
 dbt/.user.yml
 
-# Terraform
-**/.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-!*.tfvars.example
-crash.log
-override.tf
-override.tf.json
-
 # Airflow local runtime
 airflow/.astro/
 airflow/logs/
 airflow/.env
+.airflow/
 
 .idea/
 .vscode/

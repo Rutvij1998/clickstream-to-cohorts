@@ -34,8 +34,8 @@ models:
           - not_null
   - name: fct_events
     description: >
-      Event fact. On Athena this is insert_overwrite partitioned by event_date.
-      A daily run limits staging to that date, so only that partition is rewritten.
+      Event fact. Incremental delete+insert on event_date. A daily run limits
+      staging to that date, so only that date is replaced. Other dates stay.
     columns:
       - name: event_id
         data_tests:
@@ -67,8 +67,8 @@ models:
           - not_null
   - name: fct_sessions
     description: >
-      Session fact keyed by the logged user_session. On Athena, a daily run
-      rewrites every session_start_date that received an event that day.
+      Session fact keyed by the logged user_session. Rebuilt from every event
+      currently in fct_events.
     columns:
       - name: session_id
         data_tests:

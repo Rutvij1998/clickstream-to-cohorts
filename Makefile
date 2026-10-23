@@ -15,12 +15,12 @@ MONTH ?= 2019-10
 LOG_STEM := $(basename $(notdir $(INPUT)))
 
 .PHONY: help install fixtures test lint sqlfluff ci download ingest ingest-month sessionize \
-	upload dbt-deps dbt-dev dbt-dev-window dbt-parse dbt-docs dbt-athena dbt-athena-full \
-	export reconcile infra-init infra-apply infra-cli
+	dbt-deps dbt-dev dbt-dev-window dbt-parse dbt-docs export reconcile run
 
 help:
 	@echo "Clickstream to Cohorts"
 	@echo "  make install            pip install -r requirements-dev.txt"
+	@echo "  make run                CSV to Parquet to DuckDB to data/exports CSV"
 	@echo "  make fixtures           regenerate the synthetic CSV and seeds"
 	@echo "  make test               pytest, including PySpark on the fixture"
 	@echo "  make lint               ruff check and ruff format --check"
@@ -30,15 +30,10 @@ help:
 	@echo "  make ingest             one CSV to silver Parquet (INPUT=...)"
 	@echo "  make ingest-month       MONTH=2019-10 or 2019-11"
 	@echo "  make sessionize         30 minute disagreement report"
-	@echo "  make upload             local silver Parquet to S3"
-	@echo "  make dbt-dev            full DuckDB build on the fixture"
+	@echo "  make dbt-dev            full DuckDB build on the seed"
 	@echo "  make dbt-dev-window     DuckDB build for the first 7 days"
-	@echo "  make dbt-athena         Athena build, dev_mode, models only"
-	@echo "  make dbt-athena-full    Athena build for 2019-10-01 to 2019-11-30"
-	@echo "  make export             mart CSV files (EXPORT_TARGET=local or athena)"
-	@echo "  make reconcile          Spark run logs vs Athena row count"
-	@echo "  make infra-apply        Terraform apply for the bucket, Glue, Athena"
-	@echo "  make infra-cli          boto3 setup when Terraform is not installed"
+	@echo "  make export             mart CSV files in data/exports"
+	@echo "  make reconcile          Spark run logs vs local Parquet row count"
 
 install:
 	python -m pip install -r requirements-dev.txt
@@ -80,34 +75,21 @@ sessionize:
 		--pairs data/logs/session_disagreements \
 		--driver-memory $(SPARK_DRIVER_MEMORY)
 
-upload:
-	python scripts/upload_silver.py
-
 dbt-deps:
 	cd dbt && dbt deps --profiles-dir .
 
 dbt-dev: dbt-deps
-	cd dbt && dbt build --target dev --profiles-dir .
+	cd dbt && dbt build --target dev --profiles-dir . --full-refresh
 
 dbt-dev-window: dbt-deps
-	cd dbt && dbt build --target dev --profiles-dir . --vars '{dev_mode: true}'
+	cd dbt && dbt build --target dev --profiles-dir . --full-refresh --vars '{dev_mode: true}'
 
 dbt-parse: dbt-deps
 	cd dbt && dbt parse --target dev --profiles-dir .
-	cd dbt && dbt parse --target athena --profiles-dir .
 
 dbt-docs: dbt-deps
 	cd dbt && dbt docs generate --target dev --profiles-dir . --empty-catalog --static
 	cp dbt/target/static_index.html dbt/target/index.html
-
-dbt-athena: dbt-deps
-	cd dbt && dbt build --target athena --profiles-dir . \
-		--select staging intermediate core marts \
-		--vars '{dev_mode: true}'
-
-dbt-athena-full: dbt-deps
-	cd dbt && dbt build --target athena --profiles-dir . \
-		--select staging intermediate core marts
 
 export:
 	python scripts/export_marts.py
@@ -115,11 +97,5 @@ export:
 reconcile:
 	python scripts/reconcile_counts.py
 
-infra-init:
-	terraform -chdir=infra/terraform init
-
-infra-apply: infra-init
-	terraform -chdir=infra/terraform apply
-
-infra-cli:
-	python infra/bootstrap_cli.py
+run:
+	python scripts/run_local.py

@@ -65,11 +65,7 @@ def ingest_month():
             '--driver-memory "${SPARK_DRIVER_MEMORY:-8g}"'
         ),
     )
-    upload_silver = BashOperator(
-        task_id="upload_silver",
-        bash_command="python /opt/clickstream/scripts/upload_silver.py",
-    )
-    download_or_fail >> csv_to_parquet >> sessionize >> upload_silver
+    download_or_fail >> csv_to_parquet >> sessionize
 
 
 ingest_month()

@@ -1,7 +1,7 @@
 """Write the synthetic raw CSV, the silver seed, and the date spine.
 
 Rows are invented so unit tests and the DuckDB dbt target can run without
-Kaggle or AWS. They are not a sample of the REES46 files.
+a Kaggle download. They are not a sample of the REES46 files.
 """
 
 from __future__ import annotations

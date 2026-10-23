@@ -1,33 +1,16 @@
 flowchart LR
   subgraph local [Local machine]
-    kaggle[Kaggle CSV Oct and Nov 2019]
-    spark[PySpark typed ingest and dedupe]
-    session[Session disagreement report]
-    airflow[Airflow via Astro CLI]
-  end
-  subgraph aws [AWS]
-    s3[S3 Parquet partitioned by event_date]
-    glue[Glue Data Catalog]
-    athena[Athena workgroup]
-  end
-  subgraph transform [dbt]
-    staging[staging]
-    intermediate[intermediate]
-    core[core star schema]
-    marts[product marts]
+    kaggle[Kaggle CSV or checked-in sample]
+    spark[PySpark local mode]
+    parquet[Parquet in data/silver]
+    duckdb[DuckDB warehouse file]
+    airflow[Airflow optional local replay]
   end
   tableau[Tableau Public four views]
 
   kaggle --> spark
-  spark --> session
-  spark --> s3
-  s3 --> glue
-  glue --> athena
-  athena --> staging
-  staging --> intermediate
-  intermediate --> core
-  core --> marts
-  marts --> tableau
+  spark --> parquet
+  parquet --> duckdb
+  duckdb --> tableau
   airflow --> spark
-  airflow --> athena
-  airflow --> marts
+  airflow --> duckdb
