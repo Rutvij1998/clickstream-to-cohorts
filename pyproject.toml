@@ -1,0 +1,24 @@
+[project]
+name = "clickstream-to-cohorts"
+version = "0.1.0"
+description = "E-commerce clickstream turned into product growth datasets."
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "dbt/target",
+    "dbt/dbt_packages",
+    "dbt/logs",
+    "airflow/.astro",
+    "airflow/logs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["spark/tests", "tests"]
+pythonpath = [".", "airflow/dags"]
+addopts = "-q"

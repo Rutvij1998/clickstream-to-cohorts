@@ -1,0 +1,137 @@
+version: 2
+
+models:
+  - name: mart_daily_kpis
+    description: Sessions, conversion, average order value, and revenue by session start date.
+    columns:
+      - name: activity_date
+        data_tests:
+          - unique
+          - not_null
+      - name: cvr
+        description: "{{ doc('session_cvr') }}"
+      - name: aov
+        description: "{{ doc('aov') }}"
+      - name: sessions
+        data_tests:
+          - not_null
+      - name: purchasing_sessions
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "purchasing_sessions <= sessions"
+  - name: mart_funnel_daily_by_category
+    description: >
+      Day and top level category funnel. view_to_cart_rate can exceed 1 when a
+      session carts without a view. cart_without_view_sessions and
+      purchase_without_cart_sessions keep those cases visible.
+    columns:
+      - name: event_date
+        data_tests:
+          - not_null
+      - name: category_l1
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - event_date
+              - category_l1
+  - name: mart_cart_abandonment
+    description: Cart abandonment by day, top level category, and price band.
+    columns:
+      - name: cart_abandonment_rate
+        description: "{{ doc('cart_abandonment_rate') }}"
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "between 0 and 1"
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - event_date
+              - category_l1
+              - price_band
+  - name: mart_cohort_retention_weekly
+    description: Weekly retention by first seen week. Missing weeks are filled with zero active users.
+    columns:
+      - name: retention_rate
+        description: "{{ doc('retention_rate') }}"
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "between 0 and 1"
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - cohort_week
+              - weeks_since
+  - name: mart_activation
+    description: Seven day activation and the median hours to first purchase, by cohort week.
+    columns:
+      - name: cohort_week
+        data_tests:
+          - unique
+          - not_null
+      - name: activation_rate_7d
+        description: "{{ doc('activation_rate_7d') }}"
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "between 0 and 1"
+  - name: mart_revenue_drivers_daily
+    description: >
+      Revenue decomposed into sessions, conversion, and average order value.
+      Previous columns are the prior observed activity date, not a filled calendar day.
+      Filter to late November, including 2019-11-29, when asking whether traffic,
+      conversion, or basket size moved.
+    columns:
+      - name: activity_date
+        data_tests:
+          - unique
+          - not_null
+      - name: cvr
+        description: "{{ doc('session_cvr') }}"
+      - name: aov
+        description: "{{ doc('aov') }}"
+  - name: mart_category_monetization
+    description: >
+      View share and revenue share by top level category, including Unknown.
+      revenue_per_view_share is revenue share divided by view share.
+    columns:
+      - name: category_l1
+        data_tests:
+          - unique
+          - not_null
+  - name: mart_experiment_baselines
+    description: "{{ doc('sample_size') }}"
+    columns:
+      - name: metric_name
+        data_tests:
+          - not_null
+      - name: required_sample_size_per_arm
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+      - name: estimated_days_to_run
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - metric_name
+              - mde_relative

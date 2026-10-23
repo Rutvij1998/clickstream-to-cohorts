@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph local [Local machine]
+    kaggle[Kaggle CSV or checked-in sample]
+    spark[PySpark local mode]
+    parquet[Parquet in data/silver]
+    duckdb[DuckDB warehouse file]
+    airflow[Airflow optional local replay]
+  end
+  tableau[Tableau Public four views]
+
+  kaggle --> spark
+  spark --> parquet
+  parquet --> duckdb
+  duckdb --> tableau
+  airflow --> spark
+  airflow --> duckdb

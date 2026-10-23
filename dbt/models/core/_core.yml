@@ -1,0 +1,105 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: One row per day from 2019-10-01 through 2019-11-30. Week starts on Monday.
+    columns:
+      - name: date_day
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_users
+    description: One row per user, with the first seen week used as the cohort week.
+    columns:
+      - name: user_id
+        data_tests:
+          - unique
+          - not_null
+      - name: cohort_week
+        data_tests:
+          - not_null
+  - name: dim_products
+    description: One row per product, using the brand, category, and price from the latest event.
+    columns:
+      - name: product_id
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_categories
+    description: One row per category_id, using the latest category code on that id.
+    columns:
+      - name: category_id
+        data_tests:
+          - unique
+          - not_null
+  - name: fct_events
+    description: >
+      Event fact. Incremental delete+insert on event_date. A daily run limits
+      staging to that date, so only that date is replaced. Other dates stay.
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: user_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_products')
+                field: product_id
+      - name: category_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_categories')
+                field: category_id
+      - name: event_date
+        data_tests:
+          - not_null
+  - name: fct_sessions
+    description: >
+      Session fact keyed by the logged user_session. Rebuilt from every event
+      currently in fct_events.
+    columns:
+      - name: session_id
+        data_tests:
+          - unique
+          - not_null
+      - name: user_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: session_start_date
+        data_tests:
+          - not_null
+  - name: fct_orders
+    description: One order per purchasing session. revenue sums purchase event prices.
+    columns:
+      - name: order_id
+        data_tests:
+          - unique
+          - not_null
+      - name: user_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: revenue
+        data_tests:
+          - not_null
+      - name: order_date
+        data_tests:
+          - not_null

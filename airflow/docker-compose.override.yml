@@ -1,0 +1,21 @@
+# Astro CLI merges this file. Start from airflow/ after sourcing the repo .env
+# if you want the Kaggle token inside the download task.
+# ${PWD} is the airflow directory, so ${PWD}/.. is the repository root.
+x-clickstream-runtime: &clickstream-runtime
+  env_file:
+    - path: ../.env
+      required: false
+  volumes:
+    - ${PWD}/..:/opt/clickstream
+  environment:
+    CLICKSTREAM_HOME: /opt/clickstream
+    PYTHONPATH: /opt/clickstream
+    SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-8g}
+
+services:
+  scheduler:
+    <<: *clickstream-runtime
+  webserver:
+    <<: *clickstream-runtime
+  triggerer:
+    <<: *clickstream-runtime

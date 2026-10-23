@@ -1,0 +1,25 @@
+[sqlfluff]
+dialect = duckdb
+templater = dbt
+max_line_length = 120
+runaway_limit = 10
+large_file_skip_byte_limit = 0
+exclude_rules = ST06
+
+[sqlfluff:templater:dbt]
+project_dir = .
+profiles_dir = .
+profile = clickstream_to_cohorts
+target = dev
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:aliasing.length]
+min_alias_length = 1

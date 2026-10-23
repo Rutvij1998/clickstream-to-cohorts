@@ -1,0 +1,10 @@
+clickstream_to_cohorts:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: target/clickstream.duckdb
+      schema: main
+      threads: 4
+      settings:
+        TimeZone: UTC

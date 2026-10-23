@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: int_events_enriched
+    description: >
+      Events with category levels split on the dot in category_code, an Unknown
+      bucket for null category and brand, and a price band.
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: category_l1
+        data_tests:
+          - not_null
+      - name: price_band
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - under_10
+                  - 10_to_50
+                  - 50_to_200
+                  - 200_to_500
+                  - 500_plus
+  - name: int_sessions
+    description: >
+      One row per logged user_session. is_purchase is 1 when the session has
+      a purchase event. revenue is the sum of purchase prices.
+    columns:
+      - name: session_id
+        data_tests:
+          - unique
+          - not_null
+      - name: user_id
+        data_tests:
+          - not_null
+      - name: is_purchase
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false
+      - name: purchase_events
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "is_purchase = 0 or purchase_events >= 1"
+  - name: int_orders
+    description: Purchasing sessions. Several purchases in one session are one order.
+    columns:
+      - name: order_id
+        data_tests:
+          - unique
+          - not_null
+      - name: revenue
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+  - name: int_user_first_activity
+    description: First and last event, and the first purchase, for each user.
+    columns:
+      - name: user_id
+        data_tests:
+          - unique
+          - not_null
+      - name: first_seen_date
+        data_tests:
+          - not_null

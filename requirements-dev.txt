@@ -1,0 +1,8 @@
+dbt-core==1.11.6
+dbt-duckdb==1.11.0
+sqlfluff==3.5.0
+sqlfluff-templater-dbt==3.5.0
+pyspark==3.5.9
+ruff==0.17.2
+pytest==8.3.5
+kaggle==1.7.4.5
